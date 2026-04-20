@@ -1,0 +1,107 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function currentUserEmail() {
+      return request.auth.token.email;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'displayName', 'avatarUrl']) 
+        && data.keys().size() == 3
+        && data.email is string && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.avatarUrl is string && data.avatarUrl.size() <= 500
+        && data.email == currentUserEmail();
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['name', 'members', 'createdBy', 'createdAt'])
+        && data.keys().size() == 4
+        && data.name is string && data.name.size() <= 100
+        && data.members is list && data.members.size() > 0 && data.members.size() <= 50
+        && data.createdBy == currentUserEmail()
+        && data.createdAt == request.time;
+    }
+
+    function isValidExpense(data) {
+      return data.keys().hasAll(['description', 'amount', 'paidBy', 'groupId', 'groupMembers', 'date', 'splits'])
+        && data.keys().size() == 7
+        && data.description is string && data.description.size() <= 200
+        && data.amount is number && data.amount > 0
+        && data.paidBy is string
+        && data.groupId is string
+        && data.groupMembers is list && data.groupMembers.size() > 0
+        && data.splits is list && data.splits.size() > 0;
+    }
+
+    // Collection Rules
+    match /users/{email} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isEmailVerified() && isValidUser(incoming()) && email == currentUserEmail();
+      allow update: if isSignedIn() && isEmailVerified() && isValidUser(incoming()) && email == currentUserEmail()
+        && incoming().email == existing().email;
+    }
+
+    match /groups/{groupId} {
+      allow get: if isSignedIn() && existing().members.hasAny([currentUserEmail()]);
+      allow list: if isSignedIn() && resource.data.members.hasAny([currentUserEmail()]);
+      
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(groupId) && isValidGroup(incoming())
+        && incoming().members.hasAny([currentUserEmail()]);
+      
+      allow update: if isSignedIn() && isEmailVerified() && existing().members.hasAny([currentUserEmail()])
+        // Members can only update name or members list
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'members'])
+          && incoming().createdBy == existing().createdBy
+          && incoming().createdAt == existing().createdAt
+          && incoming().members.size() > 0
+        );
+
+      match /expenses/{expenseId} {
+        allow get: if isSignedIn() && get(/databases/$(database)/documents/groups/$(groupId)).data.members.hasAny([currentUserEmail()]);
+        // Denormalized check for list consistency
+        allow list: if isSignedIn() && resource.data.groupMembers.hasAny([currentUserEmail()]);
+        
+        allow create: if isSignedIn() && isEmailVerified() && isValidId(expenseId) && isValidExpense(incoming())
+          && incoming().groupId == groupId
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.members.hasAny([currentUserEmail()]);
+          
+        allow update: if isSignedIn() && isEmailVerified() && existing().groupMembers.hasAny([currentUserEmail()])
+          && isValidExpense(incoming())
+          && incoming().groupId == existing().groupId
+          && incoming().paidBy == existing().paidBy
+          && incoming().diff(existing()).affectedKeys().hasOnly(['description', 'amount', 'date', 'splits', 'groupMembers']);
+          
+        allow delete: if isSignedIn() && isEmailVerified() && existing().paidBy == currentUserEmail();
+      }
+    }
+  }
+}

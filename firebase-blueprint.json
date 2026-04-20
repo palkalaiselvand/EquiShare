@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile identifying them by email.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A group of users who share expenses.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "members": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "members", "createdBy"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "A single shared expense entry.",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "paidBy": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupMembers": { 
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "date": { "type": "string", "format": "date-time" },
+        "splits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "email": { "type": "string" },
+              "amount": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["description", "amount", "paidBy", "splits"]
+    }
+  },
+  "firestore": {
+    "/users/{email}": {
+      "schema": "User",
+      "description": "Public profiles keyed by email address."
+    },
+    "/groups/{groupId}": {
+      "schema": "Group",
+      "description": "Group metadata and memberships."
+    },
+    "/groups/{groupId}/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Expenses within a specific group."
+    }
+  }
+}
