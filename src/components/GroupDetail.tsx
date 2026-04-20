@@ -14,6 +14,7 @@ import {
   doc, 
   onSnapshot, 
   query, 
+  where,
   orderBy, 
   updateDoc,
   arrayUnion,
@@ -40,7 +41,8 @@ export default function GroupDetail({ groupId }: { groupId: string, key?: string
     });
 
     const expensesQ = query(
-      collection(db, 'groups', groupId, 'expenses')
+      collection(db, 'groups', groupId, 'expenses'),
+      where('groupMembers', 'array-contains', user?.email)
     );
     const expensesUnsub = onSnapshot(expensesQ, (snapshot) => {
       const expensesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense));

@@ -68,7 +68,10 @@ export default function App() {
     const groupBalances: Record<string, { overall: number, owedToYou: number, youOwe: number }> = {};
 
     groups.forEach(group => {
-      const q = query(collection(db, 'groups', group.id, 'expenses'));
+      const q = query(
+        collection(db, 'groups', group.id, 'expenses'),
+        where('groupMembers', 'array-contains', userProfile.email)
+      );
       const unsub = onSnapshot(q, (snapshot) => {
         let groupOwed = 0;
         let groupYouOwe = 0;
