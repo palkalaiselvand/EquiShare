@@ -18,6 +18,9 @@ export interface Expense {
   groupMembers: string[];
   date: any; // Firestore Timestamp
   splits: Split[];
+  splitType: 'equal' | 'percentage' | 'manual';
+  notes?: string;
+  attachmentUrl?: string;
 }
 
 export interface Group {

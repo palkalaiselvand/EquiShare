@@ -6,7 +6,8 @@ import {
   UserPlus,
   Trash2,
   CreditCard,
-  Activity
+  Activity,
+  Info
 } from 'lucide-react';
 import { 
   collection, 
@@ -39,11 +40,16 @@ export default function GroupDetail({ groupId }: { groupId: string, key?: string
     });
 
     const expensesQ = query(
-      collection(db, 'groups', groupId, 'expenses'),
-      orderBy('date', 'desc')
+      collection(db, 'groups', groupId, 'expenses')
     );
     const expensesUnsub = onSnapshot(expensesQ, (snapshot) => {
-      setExpenses(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense)));
+      const expensesData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Expense));
+      expensesData.sort((a, b) => {
+        const timeA = a.date?.toDate?.()?.getTime() || 0;
+        const timeB = b.date?.toDate?.()?.getTime() || 0;
+        return timeB - timeA;
+      });
+      setExpenses(expensesData);
     });
 
     return () => {
@@ -172,10 +178,23 @@ export default function GroupDetail({ groupId }: { groupId: string, key?: string
                       {expense.amount > 100 ? '💰' : '🛒'}
                     </div>
                     <div className="flex-1">
-                      <div className="text-sm font-semibold text-slate-900">{expense.description}</div>
+                      <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        {expense.description}
+                        {expense.splitType !== 'equal' && (
+                          <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded uppercase font-bold tracking-tighter">
+                            {expense.splitType}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-400 font-medium">
                         Paid by {expense.paidBy === user?.email ? 'You' : expense.paidBy.split('@')[0]} • {format(expense.date?.toDate?.() || new Date(), 'MMM d, HH:mm')}
                       </div>
+                      {expense.notes && (
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-start gap-1.5 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <Info className="w-2.5 h-2.5 mt-0.5 text-slate-300" />
+                          <span className="italic">{expense.notes}</span>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="text-right">

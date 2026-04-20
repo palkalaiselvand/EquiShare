@@ -36,6 +36,7 @@ const AppContext = createContext<{
   groups: Group[];
   loading: boolean;
   activeGroupId: string | null;
+  totalBalances: { overall: number, owedToYou: number, youOwe: number };
   setActiveGroupId: (id: string | null) => void;
   signIn: () => void;
   logout: () => void;
@@ -53,6 +54,59 @@ export default function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [totalBalances, setTotalBalances] = useState({ overall: 0, owedToYou: 0, youOwe: 0 });
+
+  useEffect(() => {
+    if (!userProfile || groups.length === 0) {
+      setTotalBalances({ overall: 0, owedToYou: 0, youOwe: 0 });
+      return;
+    }
+
+    // This is a simple implementation: fetch all expenses for all groups
+    // In a production app, we might use a more efficient denormalization or collection group query
+    const unsubscibers: (() => void)[] = [];
+    const groupBalances: Record<string, { overall: number, owedToYou: number, youOwe: number }> = {};
+
+    groups.forEach(group => {
+      const q = query(collection(db, 'groups', group.id, 'expenses'));
+      const unsub = onSnapshot(q, (snapshot) => {
+        let groupOwed = 0;
+        let groupYouOwe = 0;
+
+        snapshot.docs.forEach(doc => {
+          const expense = doc.data();
+          const userSplit = expense.splits?.find((s: any) => s.email === userProfile.email);
+          
+          if (expense.paidBy === userProfile.email) {
+            // You paid. Others owe you the sum of their splits (excluding yours)
+            const othersOwe = (expense.amount || 0) - (userSplit?.amount || 0);
+            groupOwed += othersOwe;
+          } else if (userSplit) {
+            // Someone else paid. You owe your split amount
+            groupYouOwe += (userSplit.amount || 0);
+          }
+        });
+
+        groupBalances[group.id] = {
+          overall: groupOwed - groupYouOwe,
+          owedToYou: groupOwed,
+          youOwe: groupYouOwe
+        };
+
+        // Combine results
+        const totals = Object.values(groupBalances).reduce((acc, curr) => ({
+          overall: acc.overall + curr.overall,
+          owedToYou: acc.owedToYou + curr.owedToYou,
+          youOwe: acc.youOwe + curr.youOwe
+        }), { overall: 0, owedToYou: 0, youOwe: 0 });
+
+        setTotalBalances(totals);
+      });
+      unsubscibers.push(unsub);
+    });
+
+    return () => unsubscibers.forEach(u => u());
+  }, [groups, userProfile]);
 
   useEffect(() => {
     testConnection();
@@ -83,12 +137,18 @@ export default function App() {
 
     const q = query(
       collection(db, 'groups'),
-      where('members', 'array-contains', userProfile.email),
-      orderBy('createdAt', 'desc')
+      where('members', 'array-contains', userProfile.email)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
-      setGroups(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Group)));
+      const groupsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Group));
+      // Sort client-side to avoid index requirements
+      groupsData.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
+        const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
+        return timeB - timeA;
+      });
+      setGroups(groupsData);
     });
 
     return unsub;
@@ -158,6 +218,7 @@ export default function App() {
     groups,
     loading,
     activeGroupId,
+    totalBalances,
     setActiveGroupId,
     signIn,
     logout

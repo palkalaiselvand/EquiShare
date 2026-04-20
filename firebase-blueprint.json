@@ -49,9 +49,12 @@
               "amount": { "type": "number" }
             }
           }
-        }
+        },
+        "splitType": { "type": "string", "enum": ["equal", "percentage", "manual"] },
+        "notes": { "type": "string" },
+        "attachmentUrl": { "type": "string" }
       },
-      "required": ["description", "amount", "paidBy", "splits"]
+      "required": ["description", "amount", "paidBy", "splits", "splitType"]
     }
   },
   "firestore": {

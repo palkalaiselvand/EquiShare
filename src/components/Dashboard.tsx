@@ -3,11 +3,11 @@ import { motion } from 'motion/react';
 import { Plus, Users, ArrowRight, TrendingUp, TrendingDown } from 'lucide-react';
 import { useApp } from '../App';
 import { cn, formatCurrency } from '../lib/utils';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-export default function Dashboard({ key }: { key?: string }) {
-  const { groups, user, setActiveGroupId } = useApp();
+export default function Dashboard() {
+  const { groups, user, setActiveGroupId, totalBalances } = useApp();
   const [isCreating, setIsCreating] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
 
@@ -20,7 +20,7 @@ export default function Dashboard({ key }: { key?: string }) {
         name: newGroupName,
         members: [user.email],
         createdBy: user.email,
-        createdAt: Timestamp.now(),
+        createdAt: serverTimestamp(),
       });
       setNewGroupName('');
       setIsCreating(false);
@@ -54,10 +54,10 @@ export default function Dashboard({ key }: { key?: string }) {
         <div className="max-w-6xl mx-auto grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
             {/* Overview Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard title="Overall Balance" amount={0} />
-              <StatCard title="Owed to you" amount={0} color="success" />
-              <StatCard title="You Owe" amount={0} color="red" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <StatCard title="Overall Balance" amount={totalBalances.overall} />
+              <StatCard title="Owed to you" amount={totalBalances.owedToYou} color="success" />
+              <StatCard title="You Owe" amount={totalBalances.youOwe} color="red" />
             </div>
 
             {/* Groups Grid */}
@@ -72,14 +72,14 @@ export default function Dashboard({ key }: { key?: string }) {
                   <button 
                     key={group.id}
                     onClick={() => setActiveGroupId(group.id)}
-                    className="w-full px-6 py-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full px-6 py-5 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left group"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-xl">📁</div>
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-xl group-hover:bg-accent/5 transition-colors">📁</div>
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-slate-900">{group.name}</div>
                       <div className="text-xs text-slate-400 capitalize">{group.members.length} participants</div>
                     </div>
-                    <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-indigo-600 font-bold text-xs uppercase tracking-wider group-hover:translate-x-1 transition-transform">
                       Open <ArrowRight className="w-3 h-3" />
                     </div>
                   </button>
@@ -104,7 +104,14 @@ export default function Dashboard({ key }: { key?: string }) {
                 {groups.length === 0 && !isCreating && (
                   <div className="p-12 text-center">
                     <Users className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-400 text-sm">No active groups in your workspace.</p>
+                    <p className="text-slate-900 font-bold mb-1">Create your first workspace</p>
+                    <p className="text-slate-400 text-xs mb-6">Start tracking shared expenses with your team.</p>
+                    <button 
+                      onClick={() => setIsCreating(true)}
+                      className="inline-flex items-center gap-2 bg-accent text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-accent/20"
+                    >
+                      Initialize Group
+                    </button>
                   </div>
                 )}
               </div>
@@ -118,7 +125,9 @@ export default function Dashboard({ key }: { key?: string }) {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-300">Net Standing</span>
-                    <span className="text-sm font-bold">$0.00</span>
+                    <span className={cn("text-lg font-bold", totalBalances.overall >= 0 ? "text-emerald-400" : "text-red-400")}>
+                      {formatCurrency(totalBalances.overall)}
+                    </span>
                   </div>
                 </div>
                 <button className="w-full mt-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-xs font-bold transition-all backdrop-blur-sm border border-white/10">
